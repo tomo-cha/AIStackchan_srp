@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image,CompressedImage
 from cv_bridge import CvBridge
 import torch
 from ultralytics import YOLO
@@ -21,7 +21,7 @@ class Yolov8Node(Node):
 
         # サブスクリプションの作成
         self.subscription = self.create_subscription(
-            Image,
+            CompressedImage,
             'image_raw',
             self.image_callback,
             10)
@@ -40,7 +40,7 @@ class Yolov8Node(Node):
 
     def image_callback(self, msg: Image):
         # 画像メッセージをOpenCV形式に変換
-        cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+        cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
 
         #画像のフルサイズを獲得
         full_height,full_width=cv_image.shape[:2]
@@ -90,6 +90,9 @@ class Yolov8Node(Node):
                 label = f"{class_name} ({confidence:.2f})"
                 cv2.putText(cv_image, label, (x_min, y_min - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
 
+                if label=="person":
+                    self.object_detected = true
+        
         # 検出結果をウィンドウに表示
         cv2.imshow("YOLOv8 Detection", cv_image)
 
