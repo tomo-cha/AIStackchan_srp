@@ -44,6 +44,7 @@ class Yolov8Node(Node):
 
         #画像のフルサイズを獲得
         full_height,full_width=cv_image.shape[:2]
+        obj_check=false
 
         # YOLOv8で物体検出を実行
         results = self.model(cv_image)
@@ -60,9 +61,6 @@ class Yolov8Node(Node):
                 #箱の面積
                 obj_area=width*height
                 
-                #面積とx座標に対して正規化処理
-                self.object_normalized_area = obj_area/(full_height*full_width)
-                self.object_normalized_point_x = 2.0*x_center/full_width-1.0
 
                 # クラスID、クラス名、信頼度
                 class_id = int(box.cls)
@@ -90,8 +88,17 @@ class Yolov8Node(Node):
                 label = f"{class_name} ({confidence:.2f})"
                 cv2.putText(cv_image, label, (x_min, y_min - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
 
-                if label=="person":
-                    self.object_detected = true
+                if label=="umbrella" and confidence>0.50:
+                    obj_check = true
+                    #面積とx座標に対して正規化処理
+                    self.object_normalized_area = obj_area/(full_height*full_width)
+                    self.object_normalized_point_x = 2.0*x_center/full_width-1.0
+        
+        if obj_check:
+            object_detected=true
+        else:
+            object_detected=false
+            
         
         # 検出結果をウィンドウに表示
         cv2.imshow("YOLOv8 Detection", cv_image)
