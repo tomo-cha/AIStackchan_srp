@@ -1,0 +1,152 @@
+import openai
+from collections import defaultdict
+
+# ChatGPTのAPIキーの設定
+openai.api_key = 'MY API KEY'
+
+def yolo_to_gpt(detected_classes, class_names):
+    """
+    YOLOで検出されたクラスリストと学習済みクラス名を元に、ChatGPTからユーザーに適したアドバイスを得る関数。
+    
+    Parameters:
+        detected_classes (list): YOLOの物体検知で出力されたクラスIDのリスト
+        class_names (dict): クラスIDと物体名を対応させた辞書
+
+    Returns:
+        str: ChatGPTからのアドバイス
+    """
+    # クラスIDごとに物体の個数をカウント
+    class_count = defaultdict(int)
+    for class_id in detected_classes:
+        class_count[class_id] += 1
+
+    # カウント結果を学習済みモデルのリストと照らし合わせて、物体名と個数を整理
+    object_count_summary = []
+    for class_id, count in class_count.items():
+        object_name = class_names.get(class_id, "Unknown")
+        object_count_summary.append(f"{object_name}: {count}")
+
+    # 結果をChatGPTに送信するテキストとして準備
+    object_count_text = "\n".join(object_count_summary)
+
+    # ユーザーに何をしたいかを入力させる
+    user_goal = input("あなたがこれから何をしたいか教えてください: ")
+
+    # ユーザーの目的に基づいて役に立つ物体をリストアップするプロンプト
+    final_prompt = {
+        "role": "user",
+        "content": f"ユーザーがしたいことは次の通りです: '{user_goal}'\n\n"
+                   "以下の物体検知の結果の中から、ユーザーの目的に役立つものをリストアップし、"
+                   "小学生に向かって喋るぐらいに簡単に短く、そのものの詳細と選んだ理由を出力してください。\n\n"
+                   f"物体検知の結果:\n{object_count_text}"
+    }
+
+    # ChatGPT APIにリクエストを送信（役立つ物体のリストを取得）
+    response = openai.ChatCompletion.create(
+        model="gpt-4o-mini",
+        messages=[final_prompt]
+    )
+
+    # ChatGPTからのレスポンスを変数に保存
+    chatgpt_response = response['choices'][0]['message']['content']
+
+    # 結果の出力
+    print("物体検知の結果:")
+    print(object_count_text)
+    print("\nユーザーがしたいこと:")
+    print(user_goal)
+    print("\nChatGPTからのアドバイス:")
+    print(chatgpt_response)
+
+    # ChatGPTからのレスポンスを返す
+    return chatgpt_response
+
+# 学習済みモデルのクラスIDと対応する物体名のリスト（クラスIDに対応）
+class_names = {
+    0: 'Person',
+    1: 'Bicycle',
+    2: 'Car',
+    3: 'Motorcycle',
+    4: 'Airplane',
+    5: 'Bus',
+    6: 'Train',
+    7: 'Truck',
+    8: 'Boat',
+    9: 'Traffic Light',
+    10: 'Fire Hydrant',
+    11: 'Stop Sign',
+    12: 'Parking Meter',
+    13: 'Bench',
+    14: 'Bird',
+    15: 'Cat',
+    16: 'Dog',
+    17: 'Horse',
+    18: 'Sheep',
+    19: 'Cow',
+    20: 'Elephant',
+    21: 'Bear',
+    22: 'Zebra',
+    23: 'Giraffe',
+    24: 'Backpack',
+    25: 'Umbrella',
+    26: 'Handbag',
+    27: 'Tie',
+    28: 'Suitcase',
+    29: 'Frisbee',
+    30: 'Skis',
+    31: 'Snowboard',
+    32: 'Sports Ball',
+    33: 'Kite',
+    34: 'Baseball Bat',
+    35: 'Baseball Glove',
+    36: 'Skateboard',
+    37: 'Surfboard',
+    38: 'Tennis Racket',
+    39: 'Bottle',
+    40: 'Wine Glass',
+    41: 'Cup',
+    42: 'Fork',
+    43: 'Knife',
+    44: 'Spoon',
+    45: 'Bowl',
+    46: 'Banana',
+    47: 'Apple',
+    48: 'Sandwich',
+    49: 'Orange',
+    50: 'Broccoli',
+    51: 'Carrot',
+    52: 'Hot Dog',
+    53: 'Pizza',
+    54: 'Donut',
+    55: 'Cake',
+    56: 'Chair',
+    57: 'Couch',
+    58: 'Potted Plant',
+    59: 'Bed',
+    60: 'Dining Table',
+    61: 'Toilet',
+    62: 'TV',
+    63: 'Laptop',
+    64: 'Mouse',
+    65: 'Remote',
+    66: 'Keyboard',
+    67: 'Cell Phone',
+    68: 'Microwave',
+    69: 'Oven',
+    70: 'Toaster',
+    71: 'Sink',
+    72: 'Refrigerator',
+    73: 'Book',
+    74: 'Clock',
+    75: 'Vase',
+    76: 'Scissors',
+    77: 'Teddy Bear',
+    78: 'Hair Drier',
+    79: 'Toothbrush'
+}
+
+# 例としてテスト用に物体検知されたクラスIDリスト
+detected_classes = [0, 1, 0, 5, 5, 0, 11]
+
+# 関数の呼び出し
+response = yolo_to_gpt(detected_classes, class_names)
