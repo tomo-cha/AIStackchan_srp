@@ -9,6 +9,7 @@ import cv2
 import openai
 import serial
 from sensor_msgs.msg import CompressedImage
+import threading
 
 class Yolov8Node(Node):
     def __init__(self):
@@ -29,6 +30,10 @@ class Yolov8Node(Node):
             10)
 
         
+        #オブジェクト検出
+        self.object_normalized_area=0
+        self.object_normalized_point_x=0
+
         # twistメッセージ
         self.twist = Twist()
         self.cmd_vel_publisher = self.create_publisher(Twist, 'cmd_vel', 10)
@@ -49,10 +54,17 @@ class Yolov8Node(Node):
         # OpenAI APIキーの設定
         openai.api_key = "api-key"
     
+        self.thread1 = threading.Thread(target=self.get_gpt_response(self.ask_user_for_input))
+        self.thread1.start()
+
 
     def image_callback(self, msg: CompressedImage):
         # 画像メッセージをOpenCV形式に変換
         cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
+
+        #画像のフルサイズを獲得
+        full_height,full_width=cv_image.shape[:2]
+        # obj_check=false
 
         # YOLOv8で物体検出を実行
         results = self.model(cv_image)
@@ -72,9 +84,9 @@ class Yolov8Node(Node):
                 confidence = float(box.conf)
 
                 # コンソールに表示
-                print(f"Class: {class_name} (ID: {class_id}), Confidence: {confidence:.2f}")
-                print(f"BoundingBox - X: {x_center:.2f}, Y: {y_center:.2f}, Width: {width:.2f}, Height: {height:.2f}")
-                print("-" * 50)
+                # print(f"Class: {class_name} (ID: {class_id}), Confidence: {confidence:.2f}")
+                # print(f"BoundingBox - X: {x_center:.2f}, Y: {y_center:.2f}, Width: {width:.2f}, Height: {height:.2f}")
+                # print("-" * 50)
 
                 # バウンディングボックスを描画
                 x_min = int(x_center - width / 2)
@@ -102,12 +114,41 @@ class Yolov8Node(Node):
                     # "y_max": int(x_center + width / 2)
                 })
 
+                
+
+
         # 検出結果をウィンドウに表示
         cv2.imshow("YOLOv8 Detection", cv_image)
+        cv2.waitKey(1)
+
+        if self.selected_object_class is None:
+            cv2.waitKey(1500)
+            user_input = self.ask_user_for_input()  # 1回目のユーザー入力
+            if user_input:
+                gpt_response = self.get_gpt_response(user_input)
+                print(f"GPTの選択: {gpt_response}")
+                # GPTが選択したオブジェクトのクラスを保存
+                for obj in self.detected_objects:
+                    if obj['class_name'] in gpt_response:
+                        self.selected_object_class = obj['class_name']
+                        print(self.selected_object_class)
+                        if label== self.selected_object_class and confidence>0.50:
+                        # obj_check = true
+                        #面積とx座標に対して正規化処理
+                            self.object_normalized_area = obj_area/(full_height*full_width)
+                            self.object_normalized_point_x = 2.0*x_center/full_width-1.0
+                            break
+        else:
+            if label== self.selected_object_class and confidence>0.50:
+                    # obj_check = true
+                    #面積とx座標に対して正規化処理
+                    self.object_normalized_area = obj_area/(full_height*full_width)
+                    self.object_normalized_point_x = 2.0*x_center/full_width-1.0
+            print("clear")
         # print(self.detected_objects)
 
         # ウィンドウが閉じられるまでキー入力を待つ
-        cv2.waitKey(1)
+        
 
     def ask_user_for_input(self):
         # 検出されたオブジェクトについて質問
@@ -142,20 +183,24 @@ class Yolov8Node(Node):
         return response.choices[0]['message']['content'].strip()
         # return "person"
 
+
     def on_cmd_vel_timer(self):
-        # 物体が選択される前かどうかを確認
-        if self.selected_object_class is None:
-            user_input = self.ask_user_for_input()  # 1回目のユーザー入力
-            if user_input:
-                gpt_response = self.get_gpt_response(user_input)
-                print(f"GPTの選択: {gpt_response}")
+        LINEAR_VEL=-0.5
+        ANGULAR_VEL=-0.8
+        TARGET_AREA=0.1
+        OBJECT_AREA_THRESHOLD=0.01
+        
+        if self.selected_object_class and self.object_normalized_area > OBJECT_AREA_THRESHOLD:
+            # 速度コマンドを設定
+            self.twist.linear.x = LINEAR_VEL * (self.object_normalized_area - TARGET_AREA)  # 前進速度
+            self.twist.angular.z = ANGULAR_VEL * self.object_normalized_point_x  # 角速度（誤差に基づく回転）
+        else:
+            # 物体が検出されなかった場合、停止
+            self.twist.linear.x = 0.0
+            self.twist.angular.z = 0.0
 
-                # GPTが選択したオブジェクトのクラスを保存
-                for obj in self.detected_objects:
-                    if obj['class_name'] in gpt_response:
-                        self.selected_object_class = obj['class_name']
-                        break
-
+        self.cmd_vel_publisher.publish(self.twist)
+        print(self.twist.linear.x,self.twist.angular.z)
 
 
 def main(args=None):
