@@ -94,6 +94,8 @@ class Yolov8Node(Node):
                 x_max = int(x_center + width / 2)
                 y_max = int(y_center + height / 2)
 
+                
+
                 # バウンディングボックスの四角形を描画
                 cv2.rectangle(cv_image, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
 
@@ -112,7 +114,22 @@ class Yolov8Node(Node):
                     # "y_min": int(y_center - height / 2),
                     # "x_max": int(x_center + width / 2),
                     # "y_max": int(x_center + width / 2)
+                    "width": width,
+                    "height": height,
+                    "x_center": x_center
                 })
+                print("selected_obj=",self.selected_object_class)
+                
+
+                if class_name== self.selected_object_class and confidence>0.50:
+                    obj_area = width * height
+                    self.object_normalized_area = obj_area/(full_height*full_width)
+                    self.object_normalized_point_x = 2.0*x_center/full_width-1.0
+                    print("label",label)
+                    print("width",width)
+                    print("height",height)
+
+                print("check")
 
                 
 
@@ -131,20 +148,23 @@ class Yolov8Node(Node):
                 for obj in self.detected_objects:
                     if obj['class_name'] in gpt_response:
                         self.selected_object_class = obj['class_name']
-                        print(self.selected_object_class)
-                        if label== self.selected_object_class and confidence>0.50:
-                        # obj_check = true
-                        #面積とx座標に対して正規化処理
-                            self.object_normalized_area = obj_area/(full_height*full_width)
-                            self.object_normalized_point_x = 2.0*x_center/full_width-1.0
-                            break
-        else:
-            if label== self.selected_object_class and confidence>0.50:
-                    # obj_check = true
-                    #面積とx座標に対して正規化処理
-                    self.object_normalized_area = obj_area/(full_height*full_width)
-                    self.object_normalized_point_x = 2.0*x_center/full_width-1.0
-            print("clear")
+                        print("self.selected_object_class=",self.selected_object_class)
+                        # if label== self.selected_object_class and confidence>0.50:
+                        # # obj_check = true
+                        # #面積とx座標に対して正規化処理
+                        obj_area = obj['width'] * obj['height']
+                        self.object_normalized_area = obj_area/(full_height*full_width)
+                        self.object_normalized_point_x = 2.0*obj['x_center']/full_width-1.0
+                        print("hello")
+                        break
+        # else:
+        #     # if label== self.selected_object_class and confidence>0.50:
+        #     #         # obj_check = true
+        #     #         #面積とx座標に対して正規化処理
+        #     # obj_area = obj['width'] * obj['height']
+        #     self.object_normalized_area = obj_area/(full_height*full_width)
+        #     self.object_normalized_point_x = 2.0*x_center/full_width-1.0
+        #     print("clear")
         # print(self.detected_objects)
 
         # ウィンドウが閉じられるまでキー入力を待つ
@@ -169,7 +189,7 @@ class Yolov8Node(Node):
 
     def get_gpt_response(self, user_input):
         #検出された物体リストを文字列としてフォーマット
-        object_list = ", ".join([f"{obj['class_name']} (ID: {obj['class_id']})" for obj in self.detected_objects])
+        object_list = ", ".join([f"{obj['class_name']} (ID: {obj['class_id']}) (width: {obj['width']}) (height: {obj['height']}) (x_center: {obj['x_center']})" for obj in self.detected_objects])
         prompt = f"検出された物体のリスト: {object_list}\n\n{user_input}に適した物体を1tudake選んでください。"
 
         response = openai.ChatCompletion.create(
@@ -200,7 +220,10 @@ class Yolov8Node(Node):
             self.twist.angular.z = 0.0
 
         self.cmd_vel_publisher.publish(self.twist)
-        print(self.twist.linear.x,self.twist.angular.z)
+        print("self.twist.linear.x=",self.twist.linear.x)
+        print("self.twist.angular.z=",self.twist.angular.z)
+        print("self.object_normalized_area=",self.object_normalized_area)
+        print("sself.object_normalized_point_x",self.object_normalized_point_x)
 
 
 def main(args=None):
